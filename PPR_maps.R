@@ -19,6 +19,10 @@ set_wd <- function() {
 
 set_wd()
 
+if (!require(data.table)) { # quickly read large csv tables
+  install.packages("data.table", repos = "http://cran.stat.sfu.ca/")
+  require(data.table)
+}
 if (!require(rgdal)) { # for readOGR and various spatial manipulations
   install.packages("rgdal", repos = "http://cran.stat.sfu.ca/")
   require(rgdal)
@@ -30,6 +34,14 @@ if (!require(broom)) { # for tidy(x) - fortify shp to dataframe
 if (!require(ggplot2)) { # for plotting
   install.packages("ggplot2", repos = "http://cran.stat.sfu.ca/")
   require(ggplot2)
+}
+if (!require(scales)) { # for plotting
+  install.packages("scales", repos = "http://cran.stat.sfu.ca/")
+  require(scales)
+}
+if (!require(viridis)) { # for plotting
+  install.packages("viridis", repos = "http://cran.stat.sfu.ca/")
+  require(viridis)
 }
 if (!require(maptools)) { # for land map data
   install.packages("maptools", repos = "http://cran.stat.sfu.ca/")
@@ -51,21 +63,29 @@ showtext_auto() # Tell R to use showtext to render google font
 
 # 02 LOAD DATA ------------------------------------------------------------
 
-catch <- read.csv('Data/cell_1990-1999_avg_v47.csv')
-names(catch) <- c("y", "x", "catch")
+# LORGE cell-by-cell catch by trophic level and year dataset (will take some time to load). 
+# MUST do this using fread. Would take literally hours/days to do this with base R. 
+# 136.9 million rows. 
+catch <- fread('Data/tl_cell_v47.csv')
 
+#SUBSET
+y1950 <- catch[year == "1950"]
+
+# Units of pprate are most likely gC/km2/year.
 pp <- read.csv('Data/Primary_production/pprate.csv')
 names(pp) <- c("x", "y", "cell_id", "pprate")
 pp$pprate[pp$pprate==-1] <- 0 # replace -1 PP rows with 0
-# Units of pprate should be gC/m2/year.
 
 cells <- read.csv('Data/Cell IDs coordinates and water_area.csv')
-cells <- cells[, c("x", "y", "water_area")] # we only want water area info
+cells <- cells[, c("x", "y", "seq")] # we only want x/y/cell_id
+names(cells) <- c("x","y","cell_id")
 
+pprdata <- merge(y1950, pp, by = c("cell_id")) # merge catch and pp by cell_id
+pprdata <- pprdata[,c("cell_id", "x.x", "y.x", "year", "tl", "sum", "pprate")]
+names(pprdata) <- c("cell_id", "x", "y", "year", "tl", "catch", "pprate")
 
-pprdata <- merge(catch, pp, by = c("x", "y"), all = T) # merge catch and pp by x, y coordinates
-pprdata <- merge(pprdata, cells, by = c("x", "y"), all=F) # merge resulting pprdata and cells by x, y coordinates to get water area per cell
-pprdata$catch[is.na(pprdata$catch)] <- 0 # replace NA catches with 0
+# probably not doing the thing below:
+#pprdata <- merge(pprdata, cells, by = c("x", "y"), all=F) # merge resulting pprdata and cells by x, y coordinates to get water area per cell
 
 data(wrld_simpl)
 land <- ms_simplify(wrld_simpl, keep = 0.3) # simplify using rmapshaper package
@@ -84,24 +104,29 @@ rm(wrld_simpl) # remove big extra dataset
 
 CR = 9
 TE = 0.1
-TLi = 3.2 # this is just a totally random number in here. Will need to pull this from Fishbase in future loop for each dataset.
-Ci <- pprdata$catch
+TLi = pprdata$tl
+Ci = pprdata$catch
 
 # Might not need to put this into a function yet? haven't decided. 
 #PPR <- function(){
 #  Ci <- pprdata$catch # this needs to be in the apply thing somehow
-#  TLi = 3.2 # this is just a totally random number in here. Will need to #pull this from Fishbase. 
+#  TLi =  
 #  ppr_taxon_year <- (Ci/CR) * (1/TE)^(TLi -1)
 #}
 
-pprdata$ppr <- ((Ci/CR) * (1/TE)^(TLi -1)) * 1000000 # multiply by 1e6 to convert tonnes wet weight carbon to grams carbon! final unit: gC/cell/year.
-pprdata$ppr_year <- pprdata$ppr/1000000*365 # divide by 1e6 to convert m2 to km2, multiply by 365 to get per year
-pprdata$ppr_km <- pprdata$ppr/pprdata$water_area # divide ppr per cell by the km2 water area per cell to get ppr per km2 per cell
-pprdata$percentpp <- pprdata$ppr_year/pprdata$pprate * 100
+pprdata$ppr <- ((Ci/CR) * (1/TE)^(TLi - 1)) * 1000000 # multiply by 1e6 to convert tonnes wet weight carbon to grams carbon! final unit: gC/m2/year.
+#I THINK THIS IS WRONG -> ppr1950$ppr_year <- ppr1950$ppr/1000000*365 # divide by 1e6 to convert m2 to km2, multiply by 365 to get per year
+ppr1950 <- aggregate(ppr ~ cell_id + x + y + year + pprate, pprdata, sum) # add up all ppr's by cell, + keep x, y, year, pprate columns
+ppr1950$ppr_km2 <- ppr1950$ppr/1000000 # divide by 1e6 to convert m2 to km2
 
-pprdata$logppr <- pprdata$ppr # chuck all ppr into a log column so we can take the log for funsies.
-pprdata$logppr[pprdata$logppr<1] <- 1 # replace <1 PPR rows with 1 so we can take log
-pprdata$logppr <- log(pprdata$logppr)
+#pprdata$ppr_km <- pprdata$ppr/pprdata$water_area # divide ppr per cell by the km2 water area per cell to get ppr per km2 per cell
+ppr1950$percentpp <- ppr1950$ppr_km2/ppr1950$pprate * 100
+ppr1950 <- ppr1950[ppr1950$percentpp > 0,]
+
+# log everything so we can see it mapped out a bit better.
+ppr1950$logppr <- ppr1950$ppr # chuck all ppr into a log column so we can take the log for funsies.
+ppr1950$logppr[ppr1950$logppr<1] <- 1 # replace <1 PPR rows with 1 so we can take log
+ppr1950$logppr <- log(ppr1950$logppr)
 
 
 # 04 PLOT -----------------------------------------------------------------
@@ -125,6 +150,7 @@ theme_map <- function(...) {
       panel.background = element_rect(fill = "#f5f5f2", color = NA), 
       legend.background = element_rect(fill = "#f5f5f2", color = NA),
       panel.border = element_blank(),
+      plot.background = element_rect(fill = "gray50"),
       ...
     )
 }
@@ -135,7 +161,7 @@ theme_map <- function(...) {
 # Test plot primary production 
 pp_plot <- ggplot() + 
   # plot pprate data as a raster
-  geom_raster(data = pprdata,
+  geom_raster(data = pp,
               aes(
                 x = x,
                 y = y,
@@ -192,7 +218,64 @@ plot(pp_plot)
 # Test plot primary production required
 ppr_plot <- ggplot() + 
   # plot pprate data as a raster
-  geom_raster(data = pprdata,
+  geom_raster(data = ppr1950,
+              aes(
+                x = x,
+                y = y,
+                fill=ppr_km2)
+  ) +
+  # plot land on top as a polygon
+  geom_polygon(data = land, 
+               aes(
+                 x = long, 
+                 y = lat,
+                 group = group
+               ),
+               fill = "gray80",
+               colour = "gray80",
+               size = 0.2
+  ) +
+  # set map aspect ratio, clip to world boundaries
+  coord_fixed(
+    xlim = c(-180, 180),
+    ylim = c(-90, 90)
+  ) +
+  # Scalebar & fill
+  scale_fill_viridis(
+    name = "PPR (gC/km2/year)",
+    begin = 0.15, # have color scale skip purple and start at blue
+    end = 1
+  ) +
+  # labels
+  labs(
+    x = "Latitude",
+    y = "Longitude",
+    title = "Primary production required",
+    subtitle = "1950",
+    caption = expression(paste(italic("Sea Around Us,"), " 2018"))
+  ) +
+  # set y axis scale
+  scale_y_continuous(
+    expand = c(0,0), #removes stupid gap btwn plot & axes
+    breaks = seq(-90, 90, 30),
+    limits = c(-90, 90)
+  ) +
+  # set x axis scale
+  scale_x_continuous(
+    expand = c(0,0), # removes stupid gap btwn plot & axes
+    breaks = seq(-180, 180, 30),
+    limits = c(-180, 180)
+  )
+
+plot(ppr_plot)
+
+
+# 04-3 LOG(PPR) PLOT ------------------------------------------------------
+
+# Test plot primary production required
+ppr_plot <- ggplot() + 
+  # plot pprate data as a raster
+  geom_raster(data = ppr1950,
               aes(
                 x = x,
                 y = y,
@@ -225,8 +308,8 @@ ppr_plot <- ggplot() +
     x = "Latitude",
     y = "Longitude",
     title = "Primary production required",
-    subtitle = "1990-1999",
-    caption = expression(paste("TEST DATA: Global average catch, 1990-1999,", italic("Sea Around Us,"), " 2018"))
+    subtitle = "1950",
+    caption = expression(paste(italic("Sea Around Us,"), " 2018"))
   ) +
   # set y axis scale
   scale_y_continuous(
@@ -243,7 +326,6 @@ ppr_plot <- ggplot() +
 
 plot(ppr_plot)
 
-
 # 04-3 PPR% PLOT ----------------------------------------------------------
 
 # test plot PPR as percent PP
@@ -256,7 +338,7 @@ cols <- c(colorRampPalette(c("#080616", "#1E0848", "#43006A", "#6B116F", "#981D6
 
 ppr_plot <- ggplot() + 
   # plot pprate data as a raster
-  geom_raster(data = pprdata,
+  geom_raster(data = ppr1950,
               aes(
                 x = x,
                 y = y,
@@ -282,7 +364,8 @@ ppr_plot <- ggplot() +
   scale_fill_gradientn(colours=cols, limits=c(0, 200),
                        breaks=seq(0, 200, by=25), 
                        na.value=rgb(246, 246, 246, max=255),
-                       labels=c("0%", "25%", "50%", "75%", "100%", "125%", "150%", "175%", "200%"),
+                       labels=c("0%", "25%", "50%", "75%", "100%", "125%", "150%", "175%", ">200%"),
+                       oob = squish, # squish astronomically high %s into scale color
                        guide=guide_colourbar(ticks=T, nbin=50,
                                              label=T,
                                              barwidth=.75)) +
