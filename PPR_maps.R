@@ -1,7 +1,7 @@
 # Primary Production Required (PPR) footprint maps
 
 
-# 01 INITIAL SETUP --------------------------------------------------------
+# 01 INITIAL SETUP -------------------------------------------------------
 
 # Setup
 
@@ -59,7 +59,11 @@ if (!require(showtext)) {
 }
 font_add_google("Karla", "karla") # Add nice google font
 showtext_auto() # Tell R to use showtext to render google font
-
+if (!require(extrafont)) {
+  install.packages("extrafont", repos = "http://cran.stat.sfu.ca/")
+  require(extrafont)
+}
+font_import(pattern = "Karla")
 
 # 02 LOAD DATA ------------------------------------------------------------
 
@@ -68,32 +72,56 @@ showtext_auto() # Tell R to use showtext to render google font
 # 136.9 million rows. 
 #catch <- fread('Data/tl_cell_v47.csv')
 #save(catch, file="catch.Rda")
-load("catch.Rda")
+load("catch.Rda") # this will take a minute
 
-#SUBSET
-y1950 <- catch[year == "1988"]
-
+# primary production data
 # Units of pprate are most likely gC/m2/day....? I have no clue.
 pp <- read.csv('Data/Primary_production/pprate.csv')
 names(pp) <- c("x", "y", "cell_id", "pprate")
-#pp$pprate[pp$pprate==-1] <- 0 # replace -1 PP rows with 0
 
+# cell data
 cells <- read.csv('Data/Cell IDs coordinates and water_area.csv')
 cells <- cells[, c("seq", "water_area")] # we only want cell_id/water_area
 names(cells) <- c("cell_id", "water_area")
 
-pprdata <- merge(y1950, pp, by = c("cell_id")) # merge catch and pp by cell_id
-pprdata <- pprdata[,c("cell_id", "x.x", "y.x", "year", "tl", "sum", "pprate")]
-names(pprdata) <- c("cell_id", "x", "y", "year", "tl", "catch", "pprate")
-
-# probably not doing the thing below:
-pprdata <- merge(pprdata, cells, by = c("cell_id")) # merge resulting pprdata and cells by x, y coordinates to get water area per cell
-
+# Land shapefiles for maps
 data(wrld_simpl)
 land <- ms_simplify(wrld_simpl, keep = 0.3) # simplify using rmapshaper package
 rm(wrld_simpl) # remove big extra dataset
 
-# 03 PPR CALCULATION ------------------------------------------------------
+
+# Basic map aesthetics
+#theme_map <- function(...) {
+  theme_minimal() +
+    theme(
+      text = element_text(family = "Karla", color = "#22211d"),
+      #axis.line = element_blank(),
+      #axis.text.x = element_blank(),
+      #axis.text.y = element_blank(),
+      #axis.ticks = element_blank(),
+      #axis.title.x = element_blank(),
+      #axis.title.y = element_blank(),
+      # panel.grid.minor = element_line(color = "#ebebe5", size = 0.2),
+      # panel.grid.major = element_line(color = "#ebebe5", size = 0.2),
+      panel.grid.minor = element_blank(),
+      panel.grid.major = element_blank(),
+      plot.background = element_rect(fill = "#f5f5f2", color = NA), 
+      panel.background = element_rect(fill = "#f5f5f2", color = NA), 
+      legend.background = element_rect(fill = "#f5f5f2", color = NA),
+      panel.border = element_blank(), # infuriatingly doesn't work
+      aspect.ratio = 9 / 16, # 16:9 aspect ratio
+      ...
+    )
+}
+
+# hack together a colourbar - taken from https://github.com/blmoore/blogR/blob/master/R/measles_incidence_heatmap.R
+cols <- c(colorRampPalette(c("#e7f0fa", "#c9e2f6", "#95cbee", "#0099dc",
+                             "#4ab04a", "#ffd73e"))(5),
+          colorRampPalette(c("#eec73a", "#e29421",
+                             "#e29421", "#f05336","#ce472e"),
+                           bias=2)(95))
+
+# 03 PPR CALCULATION -----------------------------------------------------
 
 # The formula for PPR is expressed as:
 #
@@ -104,49 +132,105 @@ rm(wrld_simpl) # remove big extra dataset
 #   TLi = trophic leevl of species "i"
 #   n   = number of species caught in given area (i.e., per cell?)
 
-CR = 9
-TE = 0.1
-TLi = pprdata$tl
-Ci = pprdata$catch
-
-# Might not need to put this into a function yet? haven't decided. 
-#PPR <- function(){
-#  Ci <- pprdata$catch # this needs to be in the apply thing somehow
-#  TLi =  
-#  ppr_taxon_year <- (Ci/CR) * (1/TE)^(TLi -1)
-#}
-
-# Our catch data are in tonnes catch per km
-pprdata$ppr <- ((Ci/CR) * (1/TE)^(TLi - 1)) * 1000000 #/ 1000000 / 365) # multiply by 1e6 to convert tonnes wet weight carbon to grams carbon! Divide by 1e6 to convert m2 to km2. Divide by 365 to get per day. final unit: gC/m2/day.
-#ppr1950$ppr_year <- ppr1950$ppr/1000000 # divide by 1e6 to convert m2 to km2
-ppr1950 <- aggregate(ppr ~ cell_id + x + y + year + pprate + water_area, pprdata, sum) # add up all ppr's by cell, + keep x, y, year, pprate, water_area columns
-
-#ppr1950$ppr_km <- ppr1950$ppr/1000000 # divide by 1e6 to convert m2 to km2
-
-#ppr1950$ppr_km <- ppr1950$ppr_km/ppr1950$water_area # divide ppr per cell by the km2 water area per cell to get ppr per km2 per cell
-
-ppr1950$percentpp <- ppr1950$ppr/(ppr1950$pprate * 1000000 *365) * 100
-ppr1950 <- ppr1950[ppr1950$percentpp > 0,]
-
-# log everything so we can see it mapped out a bit better.
-ppr1950$logppr <- ppr1950$ppr # chuck all ppr into a log column so we can take the log for funsies.
-ppr1950$logppr[ppr1950$logppr<1] <- 1 # replace <1 PPR rows with 1 so we can take log
-ppr1950$logppr <- log(ppr1950$logppr)
-
-
-# 04 PLOT -----------------------------------------------------------------
-
-# Basic aesthetics
-theme_map <- function(...) {
-  theme_minimal() +
+allmaps <- list() # create empty allmaps list to fill with map data from below function.
+pprmap <- function(yr) {
+  
+  # INITIAL SETUP #
+  
+  flush.console() # allows function to print status updates in console.
+  mapdata <- data.table(catch[year == yr]) # pull map data from giant dataset for particular year, make it a datatable for faster calcs.
+  print(paste0("Catch data subset for year ", yr," done."))
+  
+  pprdata <- merge(mapdata, pp, by = c("cell_id")) # merge w pp
+  pprdata <- pprdata[,c("cell_id", "x.x", "y.x", "year", "tl", "sum", "pprate")]
+  names(pprdata) <- c("cell_id", "x", "y", "year", "tl", "catch", "pprate")
+  
+  # PPR CALCULATION #
+  
+  CR = 9
+  TE = 0.1
+  TLi = pprdata$tl
+  Ci = pprdata$catch
+  
+  pprdata$ppr <- ((Ci/CR) * (1/TE)^(TLi - 1)) * 1000000 # multiply by 1e6 to convert tonnes wet weight carbon to grams carbon! final unit: gC/km2/year. Remember, our catch data are in tonnes per km2 per year.
+  
+  # using data.table "setDT(x)" to aggregate instead of base R as it's way faster. Will overwrite mapdata w actual mapping stuff (maybe not a good idea? We'll see)
+  mapdata <- setDT(pprdata)[, .(ppr = sum(ppr)), by = 'cell_id,x,y,year,pprate'] # add up all ppr's by cell, + keep x, y, year, pprate columns
+  
+  #tbh I have no idea whats up with these units but in theory.. multiply pprate by 1e6 to get into m2 and by 365 to get into year. Multiply by 100 just so that the percents SOMEHOW match up with the original paper. 
+  mapdata$percentpp <- mapdata$ppr/(mapdata$pprate * 100 * 1000000 * 365) * 100
+  print("PPR calculations done.")
+  
+  dfname <- paste0("map",yr)
+  allmaps[[dfname]] <<- mapdata # add mapdata to a giant dataframe that contains all map data (for later gif.)
+  
+  # NOW TO MAP IT #
+  
+  ppr_plot <- ggplot() + 
+    # plot pprate data as a raster
+    geom_raster(data = mapdata,
+                aes(
+                  x = x,
+                  y = y,
+                  fill=percentpp)
+    ) +
+    # plot land on top as a polygon
+    geom_polygon(data = land, 
+                 aes(
+                   x = long, 
+                   y = lat,
+                   group = group
+                 ),
+                 fill = "gray80",
+                 colour = "gray80",
+                 size = 0.2
+    ) +
+    # set map aspect ratio, clip to world boundaries
+    coord_fixed(
+      xlim = c(-180, 180),
+      ylim = c(-90, 90)
+    ) +
+    # Scalebar & fill
+    scale_fill_gradientn(
+      name = "% PP",
+      colours=cols, limits=c(0, 21),
+      breaks=c(0, 1, 2, 5, 10, 20), 
+      na.value=rgb(246, 246, 246, max=255),
+      labels=c("0%", "1%", "2%", "5%", "10%", ">20%"),
+      oob = squish, # squish astronomically high %s into scale color
+      guide=guide_colourbar(ticks=T, nbin=50,
+                            label=T,
+                            barheight = 10,
+                            barwidth=.75)) +
+    # labels
+    labs(
+      x = "Latitude",
+      y = "Longitude",
+      title = "Primary production required",
+      subtitle = yr,
+      caption = expression(paste("Data: ", italic("Sea Around Us,"), " 2018"))
+    ) +
+    # set y axis scale
+    scale_y_continuous(
+      expand = c(0,0), #removes stupid gap btwn plot & axes
+      breaks = seq(-90, 90, 30),
+      limits = c(-90, 90)
+    ) +
+    # set x axis scale
+    scale_x_continuous(
+      expand = c(0,0), # removes stupid gap btwn plot & axes
+      breaks = seq(-180, 180, 30),
+      limits = c(-180, 180)
+    ) +
+    theme_minimal() +
     theme(
       text = element_text(family = "Karla", color = "#22211d"),
-      axis.line = element_blank(),
-      axis.text.x = element_blank(),
-      axis.text.y = element_blank(),
-      axis.ticks = element_blank(),
-      axis.title.x = element_blank(),
-      axis.title.y = element_blank(),
+      #axis.line = element_blank(),
+      #axis.text.x = element_blank(),
+      #axis.text.y = element_blank(),
+      #axis.ticks = element_blank(),
+      #axis.title.x = element_blank(),
+      #axis.title.y = element_blank(),
       # panel.grid.minor = element_line(color = "#ebebe5", size = 0.2),
       # panel.grid.major = element_line(color = "#ebebe5", size = 0.2),
       panel.grid.minor = element_blank(),
@@ -154,11 +238,44 @@ theme_map <- function(...) {
       plot.background = element_rect(fill = "#f5f5f2", color = NA), 
       panel.background = element_rect(fill = "#f5f5f2", color = NA), 
       legend.background = element_rect(fill = "#f5f5f2", color = NA),
-      panel.border = element_blank(),
-      plot.background = element_rect(fill = "gray50"),
-      ...
+      panel.border = element_blank(), # infuriatingly doesn't work
+      plot.margin = unit(c(0,0,0,0), "cm"), # also infuriatingly doesn't work
+      aspect.ratio = 9 / 16 # 16:9 aspect ratio
     )
+  
+  plot(ppr_plot) 
+  
+  # SAVE IT #
+  
+  write.csv(mapdata, file=paste0("Results/Yearly csv data//ppr_",yr,".csv"))
+  print("csv saved")
+  ggsave(
+    filename = paste0("Results/Yearly maps/ppr_map",yr,".png"), 
+    plot = ppr_plot, 
+    width=85 * (14/5), # 85 mm is 1 column width of Frontiers journal
+    height = 51 * (14/5), # * 1.6 because of this stupid hacky workaround https://stackoverflow.com/questions/44685354/r-ggplot-ggsave-produces-different-plot-element-sizes-than-simply-exporting-in-r
+    device = "png",
+    dpi = 300, 
+    units = "mm"
+    )
+  print("map saved")
+  
 }
+
+
+# 04 LOOP -----------------------------------------------------------------
+
+
+
+# # log everything so we can see it mapped out a bit better.
+# ppr1950$logppr <- ppr1950$ppr # chuck all ppr into a log column so we can take the log for funsies.
+# ppr1950$logppr[ppr1950$logppr<1] <- 1 # replace <1 PPR rows with 1 so we can take log
+# ppr1950$logppr <- log(ppr1950$logppr)
+
+
+# 04 PLOT -----------------------------------------------------------------
+
+
 
 
 # 04-1 PP PLOT ------------------------------------------------------------
@@ -318,12 +435,14 @@ ppr_plot <- ggplot() +
     ylim = c(-90, 90)
   ) +
   # Scalebar & fill
-  scale_fill_gradientn(colours=cols, limits=c(0, 20),
-                       breaks=c(0, 1, 2, 5, 10), 
-                       na.value=rgb(246, 246, 246, max=255),
-                       labels=c("0%", "1%", "2%", "5%", "10%"),
-                       oob = squish, # squish astronomically high %s into scale color
-                       guide=guide_colourbar(ticks=T, nbin=50,
+  scale_fill_gradientn(
+                      name = "% PP",
+                      colours=cols, limits=c(0, 21),
+                      breaks=c(0, 1, 2, 5, 10, 20), 
+                      na.value=rgb(246, 246, 246, max=255),
+                      labels=c("0%", "1%", "2%", "5%", "10%", ">20%"),
+                      oob = squish, # squish astronomically high %s into scale color
+                      guide=guide_colourbar(ticks=T, nbin=50,
                                              label=T,
                                              barheight = 10,
                                              barwidth=.75)) +
@@ -331,9 +450,9 @@ ppr_plot <- ggplot() +
   labs(
     x = "Latitude",
     y = "Longitude",
-    title = "Primary production required as %age of PP",
-    subtitle = "1990-1999",
-    caption = expression(paste("TEST DATA: Global average catch, 1990-1999,", italic("Sea Around Us,"), " 2018"))
+    title = "Primary production required",
+    subtitle = "1988",
+    caption = expression(paste("Data: ", italic("Sea Around Us,"), " 2018"))
   ) +
   # set y axis scale
   scale_y_continuous(
@@ -346,7 +465,8 @@ ppr_plot <- ggplot() +
     expand = c(0,0), # removes stupid gap btwn plot & axes
     breaks = seq(-180, 180, 30),
     limits = c(-180, 180)
-  )
+  ) +
+  theme_map()
 
 plot(ppr_plot)
 
