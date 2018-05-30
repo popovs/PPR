@@ -63,7 +63,7 @@ if (!require(extrafont)) {
   install.packages("extrafont", repos = "http://cran.utstat.utoronto.ca/")
   require(extrafont)
 }
-font_import(pattern = "Karla")
+#font_import(pattern = "Karla") # only need to do this once
 
 # 02 LOAD DATA ------------------------------------------------------------
 
@@ -95,6 +95,14 @@ theme_map <- function(...) {
   theme_minimal() +
     theme(
       text = element_text(family = "Karla", color = "#22211d"),
+      plot.title=element_text(size=25), # Plot title
+      plot.subtitle=element_text(size=15), # Plot subtitle
+      legend.title=element_text(size=15), # Legend title
+      legend.text=element_text(size=12), # Legend items
+      axis.title=element_text(size=15), # Axis titles
+      axis.text=element_text(size=10), # Axis labels
+      axis.title.y=element_text(margin=margin(0,10,0,0)),
+      axis.title.x=element_text(margin=margin(10,0,0,0)),
       #axis.line = element_blank(),
       #axis.text.x = element_blank(),
       #axis.text.y = element_blank(),
@@ -222,26 +230,27 @@ pprmap <- function(yr, savecsv=FALSE, savepng=FALSE) {
       breaks = seq(-180, 180, 30),
       limits = c(-180, 180)
     ) +
-    theme_minimal() +
-    theme(
-      text = element_text(family = "Karla", color = "#22211d"),
-      #axis.line = element_blank(),
-      #axis.text.x = element_blank(),
-      #axis.text.y = element_blank(),
-      #axis.ticks = element_blank(),
-      #axis.title.x = element_blank(),
-      #axis.title.y = element_blank(),
-      # panel.grid.minor = element_line(color = "#ebebe5", size = 0.2),
-      # panel.grid.major = element_line(color = "#ebebe5", size = 0.2),
-      panel.grid.minor = element_blank(),
-      panel.grid.major = element_blank(),
-      plot.background = element_rect(fill = "#f5f5f2", color = NA), 
-      panel.background = element_rect(fill = "#f5f5f2", color = NA), 
-      legend.background = element_rect(fill = "#f5f5f2", color = NA),
-      panel.border = element_blank(), # infuriatingly doesn't work
-      plot.margin = unit(c(0,0,0,0), "cm"), # also infuriatingly doesn't work
-      aspect.ratio = 9 / 16 # 16:9 aspect ratio
-    )
+    theme_map()
+    # theme_minimal() +
+    # theme(
+    #   text = element_text(family = "Karla", color = "#22211d"),
+    #   #axis.line = element_blank(),
+    #   #axis.text.x = element_blank(),
+    #   #axis.text.y = element_blank(),
+    #   #axis.ticks = element_blank(),
+    #   #axis.title.x = element_blank(),
+    #   #axis.title.y = element_blank(),
+    #   # panel.grid.minor = element_line(color = "#ebebe5", size = 0.2),
+    #   # panel.grid.major = element_line(color = "#ebebe5", size = 0.2),
+    #   panel.grid.minor = element_blank(),
+    #   panel.grid.major = element_blank(),
+    #   plot.background = element_rect(fill = "#f5f5f2", color = NA), 
+    #   panel.background = element_rect(fill = "#f5f5f2", color = NA), 
+    #   legend.background = element_rect(fill = "#f5f5f2", color = NA),
+    #   panel.border = element_blank(), # infuriatingly doesn't work
+    #   plot.margin = unit(c(0,0,0,0), "cm"), # also infuriatingly doesn't work
+    #   aspect.ratio = 9 / 16 # 16:9 aspect ratio
+    # )
   
   plot(ppr_plot) 
   
@@ -299,11 +308,11 @@ ratchetmaps <- allmaps %>%
 
 # create ratchet map function ratchetmap()
 
-ratchetmap <- function(yr, savecsv=TRUE, savepng=TRUE) {
+ratchetmap <- function(yr, savecsv=FALSE, savepng=TRUE) {
   
   flush.console() # allows function to print status updates in console.
   mapdata <- ratchetmaps[ratchetmaps$year == yr,]
-  print("Map data gathered.")
+  print(paste0("Map data for ",yr," gathered."))
   
   ratchet_plot <- ggplot() + 
     # plot pprate data as a raster
@@ -333,9 +342,9 @@ ratchetmap <- function(yr, savecsv=TRUE, savepng=TRUE) {
     scale_fill_gradientn(
       name = "% PP",
       colours=cols, limits=c(0, 21),
-      breaks=c(0, 1, 2, 5, 10, 20), 
+      breaks=c(0, 2, 5, 10, 20), 
       na.value=rgb(246, 246, 246, max=255),
-      labels=c("0%", "1%", "2%", "5%", "10%", ">20%"),
+      labels=c("0%", "2%", "5%", "10%", ">20%"),
       oob = squish, # squish astronomically high %s into scale color
       guide=guide_colourbar(ticks=T, nbin=50,
                             label=T,
@@ -361,26 +370,19 @@ ratchetmap <- function(yr, savecsv=TRUE, savepng=TRUE) {
       breaks = seq(-180, 180, 30),
       limits = c(-180, 180)
     ) +
-    theme_minimal() +
-    theme(
-      text = element_text(family = "Karla", color = "#22211d"),
-      #axis.line = element_blank(),
-      #axis.text.x = element_blank(),
-      #axis.text.y = element_blank(),
-      #axis.ticks = element_blank(),
-      #axis.title.x = element_blank(),
-      #axis.title.y = element_blank(),
-      # panel.grid.minor = element_line(color = "#ebebe5", size = 0.2),
-      # panel.grid.major = element_line(color = "#ebebe5", size = 0.2),
-      panel.grid.minor = element_blank(),
-      panel.grid.major = element_blank(),
-      plot.background = element_rect(fill = "#f5f5f2", color = NA), 
-      panel.background = element_rect(fill = "#f5f5f2", color = NA), 
-      legend.background = element_rect(fill = "#f5f5f2", color = NA),
-      panel.border = element_blank(), # infuriatingly doesn't work
-      plot.margin = unit(c(0,0,0,0), "cm"), # also infuriatingly doesn't work
-      aspect.ratio = 9 / 16 # 16:9 aspect ratio
-    )
+    theme_map()
+    # theme_minimal() +
+    # theme(
+    #   text = element_text(family = "Karla", color = "#22211d"),
+    #   panel.grid.minor = element_blank(),
+    #   panel.grid.major = element_blank(),
+    #   plot.background = element_rect(fill = "#f5f5f2", color = NA), 
+    #   panel.background = element_rect(fill = "#f5f5f2", color = NA), 
+    #   legend.background = element_rect(fill = "#f5f5f2", color = NA),
+    #   panel.border = element_blank(), # infuriatingly doesn't work
+    #   plot.margin = unit(c(0,0,0,0), "cm"), # also infuriatingly doesn't work
+    #   aspect.ratio = 9 / 16 # 16:9 aspect ratio
+    # )
   
   plot(ratchet_plot) 
   
@@ -563,19 +565,20 @@ p <- ggplot() +
   scale_fill_gradientn(
     name = "% PP",
     colours=cols, limits=c(0, 21),
-    breaks=c(0, 1, 2, 5, 10, 20), 
+    breaks=c(0, 2, 5, 10, 20), 
     na.value=rgb(246, 246, 246, max=255),
-    labels=c("0%", "1%", "2%", "5%", "10%", ">20%"),
+    labels=c("0%", "2%", "5%", "10%", ">20%"),
     oob = squish, # squish astronomically high %s into scale color
     guide=guide_colourbar(ticks=T, nbin=50,
                           label=T,
                           barheight = 10,
-                          barwidth=.75)) +
+                          barwidth=.75)
+    ) +
   # labels
   labs(
     x = "Latitude",
     y = "Longitude",
-    title = "Primary production required",
+    title = "Primary production required in",
     subtitle = "",
     caption = expression(paste("Data: ", italic("Sea Around Us,"), " 2018"))
   ) +
@@ -591,38 +594,114 @@ p <- ggplot() +
     breaks = seq(-180, 180, 30),
     limits = c(-180, 180)
   ) +
-  theme_minimal() +
+  theme_map()
+
+
+#animation::ani.options(ani.width=2000, ani.height=1124, ani.res=1080)
+animation::ani.options(ani.width=1000, ani.height=562, ani.res=300)
+gganimate(p, "Results/slow-ratchet-PPR-animation.gif", interval=0.5) # will take a minute or two
+
+
+
+# 07 CUMULATIVE CURVES ----------------------------------------------------
+
+# Set bins for percent exploitation level
+bins <- c(0, 1, 2, 5, 10, 20, 50, Inf)
+
+# Cut data into bins
+ratchetmaps$bins <- cut(
+  ratchetmaps$percentpp, 
+  breaks = bins, 
+  labels = c("<1%", "1-2%", "2-5%", "5-10%", "10-20%", "20-50%", ">50%"),
+  right = FALSE
+)
+
+# Then aggregate by year and bin, grouping by the length of the cell_id vector (eg., the count of the number of cells in each bin group.)
+cumcount <- aggregate(cell_id ~ bins + year, ratchetmaps, length)
+colnames(cumcount)[3] <- "count"
+
+# The above result gives us the count of the number of cells within each bin. However, it doesn't tell us the count of cells with that percent exploitation _or greater_. So, for example, our bins for 1-2% cells don't include the count of any cells with a _higher_ exploitation rate as well.
+
+cumcount <- cumcount[cumcount$bins != "<1%",] # first, let's get rid of cells with less than 1% exploitation. We really don't need that. 
+  
+gt1_2 <- aggregate(count ~ year, cumcount, sum) # for all rows where there is a 1-2% bin, replace the count with the sum of all 1-2% or GREATER (which is everything).
+gt2_5 <- aggregate(count ~ year, cumcount[cumcount$bins != "1-2%",], sum) # for all rows where count is 2-5% or greater
+gt5_10 <- aggregate(count ~ year, cumcount[cumcount$bins != c("1-2%", "2-5%"),], sum) # for all rows where count is 5-10% or greater
+gt10_20 <- aggregate(count ~ year, cumcount[cumcount$bins != c("1-2%", "2-5%", "5-10%"),], sum) # for all rows where count is 10-20% or greater
+gt20_50 <- aggregate(count ~ year, cumcount[cumcount$bins == c("20-50%", ">50%"),], sum) # for all rows where count is 20-50% or greater
+
+# add the "or greater" column
+cumcount[cumcount$bins=="1-2%", "orgreater"] <- gt1_2[2]
+cumcount[cumcount$bins=="2-5%", "orgreater"] <- gt2_5[2]
+cumcount[cumcount$bins=="5-10%", "orgreater"] <- gt5_10[2]
+cumcount[cumcount$bins=="10-20%", "orgreater"] <- gt10_20[2]
+cumcount[cumcount$bins=="20-50%", "orgreater"] <- gt20_50[2]
+cumcount[cumcount$bins==">50%", "orgreater"] <- cumcount[cumcount$bins==">50%", "count"]
+
+# definitely could've looped all of that but whatever lol
+
+# oh boy. 
+cumpal <- c("#0099dc", "#ffd73e", "#f29d1f", "#f16c1f", "#f05336", "#d12c17")
+
+# now plot that boi
+#cumplot <- 
+  ggplot(
+  data = cumcount,
+    aes(
+      x = year, 
+      y = orgreater, 
+      color = bins,
+      group = bins
+      #,frame = year # for gganimate
+      )
+  ) +
+  geom_line(
+    # aes(cumulative = TRUE # for gganimate
+    #    )
+  ) +
+  scale_x_continuous(
+    expand = c(0,0),
+    limits = c(1950, 2014),
+    breaks = seq(1950, 2014, 10)
+  ) +
+  
+  scale_y_continuous(
+    expand = c(0,0)
+  ) +
+  scale_color_manual(
+    values = cumpal,
+    name = "Percent exploitation",
+    labels = c("1-2% or greater", "2-5% or greater", "5-10% or greater", "10-20% or greater", "20-50% or greater", ">50%")
+    ) +
+  labs(
+    x = "Year", 
+    y = "Number of cells",
+    title = "Cumulative frequency of exploited cells"
+  ) +
+  theme_map() + 
   theme(
-    text = element_text(family = "Karla", color = "#22211d"),
-    #axis.line = element_blank(),
-    #axis.text.x = element_blank(),
-    #axis.text.y = element_blank(),
-    #axis.ticks = element_blank(),
-    #axis.title.x = element_blank(),
-    #axis.title.y = element_blank(),
-    # panel.grid.minor = element_line(color = "#ebebe5", size = 0.2),
-    # panel.grid.major = element_line(color = "#ebebe5", size = 0.2),
-    panel.grid.minor = element_blank(),
-    panel.grid.major = element_blank(),
-    plot.background = element_rect(fill = "#f5f5f2", color = NA), 
-    panel.background = element_rect(fill = "#f5f5f2", color = NA), 
-    legend.background = element_rect(fill = "#f5f5f2", color = NA),
-    panel.border = element_blank(), # infuriatingly doesn't work
-    plot.margin = unit(c(0,0,0,0), "cm"), # also infuriatingly doesn't work
-    aspect.ratio = 9 / 16, # 16:9 aspect ratio
-    legend.title=element_text(size=10), # Legend title
-    legend.text=element_text(size=8), # Legend items
-    axis.title=element_text(size=10), # Axis titles
-    axis.text=element_text(size=8) # Axis labels
+    axis.line = element_line(color="black", size=0.2)
   )
 
-animation::ani.options(ani.width=1000, ani.height=562, ani.res=1080)
-gganimate(p, "Results/ratchet-PPR-animation.mp4", interval=0.2) # will take a minute or two
+# ggsave(
+#   filename = "Results/cumulative_plot.png",
+#   plot = cumplot,
+#   width=85 * (14/5), # 85 mm is 1 column width of Frontiers journal
+#   height = 40 * (14/5), # * 1.6 because of this stupid hacky workaround https://stackoverflow.com/questions/44685354/r-ggplot-ggsave-produces-different-plot-element-sizes-than-simply-exporting-in-r
+#   device = "png",
+#   dpi = 300,
+#   units = "mm"
+# )
+
+animation::ani.options(ani.width=1004, ani.height=472, ani.res=300)
+gganimate(cumplot, "Results/cumulative_plot_animation.gif", interval=0.2) # will take a minute or two
 
 
 
 
-# 07 MISC. PLOT -----------------------------------------------------------------
+
+
+# 0x MISC. PLOT -----------------------------------------------------------------
 
 
 # 07-1 PP PLOT ------------------------------------------------------------
@@ -759,7 +838,7 @@ cols <- c(colorRampPalette(c("#e7f0fa", "#c9e2f6", "#95cbee", "#0099dc",
 
 ppr_plot <- ggplot() + 
   # plot pprate data as a raster
-  geom_raster(data = ppr1950,
+  geom_raster(data = allmaps[allmaps$year==1988,],
               aes(
                 x = x,
                 y = y,
@@ -785,9 +864,9 @@ ppr_plot <- ggplot() +
   scale_fill_gradientn(
                       name = "% PP",
                       colours=cols, limits=c(0, 21),
-                      breaks=c(0, 1, 2, 5, 10, 20), 
+                      breaks=c(0, 2, 5, 10, 20), 
                       na.value=rgb(246, 246, 246, max=255),
-                      labels=c("0%", "1%", "2%", "5%", "10%", ">20%"),
+                      labels=c("0%", "2%", "5%", "10%", ">20%"),
                       oob = squish, # squish astronomically high %s into scale color
                       guide=guide_colourbar(ticks=T, nbin=50,
                                              label=T,
@@ -817,7 +896,15 @@ ppr_plot <- ggplot() +
 
 plot(ppr_plot)
 
-
+ggsave(
+  filename = "test.png",
+  plot = ppr_plot,
+  width=85 * (14/5), # 85 mm is 1 column width of Frontiers journal
+  height = 51 * (14/5), # * 1.6 because of this stupid hacky workaround https://stackoverflow.com/questions/44685354/r-ggplot-ggsave-produces-different-plot-element-sizes-than-simply-exporting-in-r
+  device = "png",
+  dpi = 300,
+  units = "mm"
+)
 
 # S1 LOG(PPR) PLOT --------------------------------------------------------
 
