@@ -27,6 +27,10 @@ if (!require(rgdal)) { # for readOGR and various spatial manipulations
   install.packages("rgdal", repos = "http://cran.utstat.utoronto.ca/")
   require(rgdal)
 }
+if (!require(dplyr)) { # for all sorts of R stuff
+  install.packages("dplyr", repos = "http://cran.utstat.utoronto.ca/")
+  require(dplyr)
+}
 if (!require(broom)) { # for tidy(x) - fortify shp to dataframe
   install.packages("broom", repos = "http://cran.utstat.utoronto.ca/")
   require(broom)
@@ -59,11 +63,14 @@ if (!require(showtext)) {
 }
 font_add_google("Karla", "karla") # Add nice google font
 showtext_auto() # Tell R to use showtext to render google font
-if (!require(extrafont)) {
-  install.packages("extrafont", repos = "http://cran.utstat.utoronto.ca/")
-  require(extrafont)
-}
+# if (!require(extrafont)) {
+#   install.packages("extrafont", repos = "http://cran.utstat.utoronto.ca/")
+#   require(extrafont)
+# }
 #font_import(pattern = "Karla") # only need to do this once
+
+# 1. custom "not in" function
+"%!in%" <- function(x, y) ! ("%in%" (x, y))
 
 # 02 LOAD DATA ------------------------------------------------------------
 
@@ -72,7 +79,17 @@ if (!require(extrafont)) {
 # 136.9 million rows. 
 #catch <- fread('Data/tl_cell_v47.csv')
 #save(catch, file="catch.Rda")
-load("catch.Rda") # this will take a minute
+
+# LOAD FULL CATCH DATASET IF YOU NEED TO EDIT BASE DATA
+# load("catch.Rda") # this will take a minute
+
+# OTHERWISE LOAD PPRMAPS DATASET
+# Save that shit so you don't have to run this lorgeloop(TM) again
+# save(allmaps, file="allmaps.Rda")
+load("allmaps.Rda") # this will take a minute
+
+# bind allmaps into one large dataframe
+allmaps <- rbindlist(allmaps) # combine allmaps together into giant dataframe.
 
 # primary production data
 # Units of pprate are most likely gC/m2/day....? I have no clue.
@@ -88,6 +105,33 @@ names(cells) <- c("cell_id", "water_area")
 data(wrld_simpl)
 land <- ms_simplify(wrld_simpl, keep = 0.3) # simplify using rmapshaper package
 rm(wrld_simpl) # remove big extra dataset
+
+
+# 02-1 Bad cells fix ------------------------------------------------------
+
+# EDIT MAY 31: FIXING MESSED UP 1950-1952 CELLS
+# For whateverass reason we have fishing occuring in the middle of the Pacific ocean in 1950, 1951, and 1952. Replacing them with 1953 data until underlying SAU data are fixed. 
+# NOTE THAT MEANS THAT THE PPR MAP FUNCTION WILL NOT HAVE THESE CORRECTIONS AS IT PULLS DATA FROM THE ORIGINAL SAU CATCH DATASET.
+
+fix <- read.csv('Data/messed_up_cells_1950-1952.csv', stringsAsFactors = FALSE)
+fix <- fix[1]
+
+clean <- allmaps %>% filter(allmaps$cell_id %in% fix$cell_id & allmaps$year == 1953)
+
+fixyears <- 1950:1952
+
+# delete bad cells from bad years
+allmaps <- allmaps[!(cell_id %in% fix$cell_id & allmaps$year %in% fixyears)]
+
+# looptidy woop & bind clean
+for (i in fixyears){
+  clean$year <- i
+  allmaps <- rbind(allmaps, clean)
+}
+
+
+
+# 02-2 Map aesthetics-------------------------------------------------------
 
 
 # Basic map aesthetics
@@ -231,26 +275,6 @@ pprmap <- function(yr, savecsv=FALSE, savepng=FALSE) {
       limits = c(-180, 180)
     ) +
     theme_map()
-    # theme_minimal() +
-    # theme(
-    #   text = element_text(family = "Karla", color = "#22211d"),
-    #   #axis.line = element_blank(),
-    #   #axis.text.x = element_blank(),
-    #   #axis.text.y = element_blank(),
-    #   #axis.ticks = element_blank(),
-    #   #axis.title.x = element_blank(),
-    #   #axis.title.y = element_blank(),
-    #   # panel.grid.minor = element_line(color = "#ebebe5", size = 0.2),
-    #   # panel.grid.major = element_line(color = "#ebebe5", size = 0.2),
-    #   panel.grid.minor = element_blank(),
-    #   panel.grid.major = element_blank(),
-    #   plot.background = element_rect(fill = "#f5f5f2", color = NA), 
-    #   panel.background = element_rect(fill = "#f5f5f2", color = NA), 
-    #   legend.background = element_rect(fill = "#f5f5f2", color = NA),
-    #   panel.border = element_blank(), # infuriatingly doesn't work
-    #   plot.margin = unit(c(0,0,0,0), "cm"), # also infuriatingly doesn't work
-    #   aspect.ratio = 9 / 16 # 16:9 aspect ratio
-    # )
   
   plot(ppr_plot) 
   
@@ -285,18 +309,13 @@ lapply(years, pprmap)
 
 # Save that shit so you don't have to run this lorgeloop(TM) again
 # save(allmaps, file="allmaps.Rda")
-load("allmaps.Rda") # this will take a minute
+#load("allmaps.Rda") # this will take a minute
 
 # When you're done, remove catch to free up some RAM.
 rm(catch)
 
 
 # 05 RATCHET --------------------------------------------------------------
-
-if (!require(dplyr)) { # to simplify map data
-  install.packages("dplyr", repos = "http://cran.utstat.utoronto.ca/")
-  require(dplyr)
-}
 
 # ratcheting 
 ratchetmaps <- allmaps %>%
@@ -440,10 +459,6 @@ showtext_auto() # Tell R to use showtext to render google font
 
 
 # 06-1 PPR animate --------------------------------------------------------
-
-
-# bind allmaps
-allmaps <- rbindlist(allmaps) # combine allmaps together into giant dataframe.
 
 # first you create the plot, then you animate all the layers within the data.
 p <- ggplot() + 
