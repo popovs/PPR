@@ -708,7 +708,48 @@ allmaps$ppr_km <- allmaps$ppr * allmaps$water_area
 global_mean <- aggregate(ppr_km ~ year, allmaps, sum)
 global_mean$mean <- global_mean$ppr_km/oceans_km2
 
-ggplot(data = global_mean, aes(x=year, y=mean)) + geom_line() + theme_map()
+# Divide by xxxxxx (for axes formatting)
+divide1mil <- function(){
+  function(x)x/1000000
+}
+
+# PPR gC/km2/year
+PPR_legend = expression(
+  "Mean PPR" ~ ("gC" %*% "km"^-2 %*% "year"^-1)
+)
+
+mean_plot <- ggplot(
+  data = global_mean, 
+  aes(x=year, y=mean)
+  ) + 
+  geom_line() + 
+  scale_x_continuous(
+    expand = c(0,0),
+    limits = c(1950, 2014),
+    breaks = seq(1950, 2014, 10)
+  ) +
+  scale_y_continuous(
+    expand = c(0,0)
+  ) +
+  labs(
+    x = "Year", 
+    y = PPR_legend
+  ) +
+  theme_map() +
+  theme(
+    axis.line = element_line(color="black", size=0.2),
+    axis.title=element_text(size=11) # Axis titles
+    )
+
+ggsave(
+  filename = "Results/global_mean_ppr.png",
+  plot = mean_plot,
+  width=70 * (14/5), # 85 mm is 1 column width of Frontiers journal
+  height = 40 * (14/5), # * 1.6 because of this stupid hacky workaround https://stackoverflow.com/questions/44685354/r-ggplot-ggsave-produces-different-plot-element-sizes-than-simply-exporting-in-r
+  device = "png",
+  dpi = 300,
+  units = "mm"
+)
 
 # S1 MISC. PLOT -----------------------------------------------------------------
 
