@@ -597,54 +597,70 @@ p <- ggplot() +
 
 #animation::ani.options(ani.width=2000, ani.height=1124, ani.res=1080)
 animation::ani.options(ani.width=1000, ani.height=562, ani.res=300)
-gganimate(p, "Results/slow-ratchet-PPR-animation.gif", interval=0.2) # will take a minute or two
+gganimate(p, "Results/ratchet-PPR-animation.gif", interval=0.2) # will take a minute or two
 
 
 
 # 07 CUMULATIVE CURVES ----------------------------------------------------
 
+ratchetmaps <- merge(ratchetmaps, cells, by=c("cell_id")) # might need to move this line up to the cumulative plots above
+
 # Set bins for percent exploitation level
-bins <- c(0, 1, 2, 5, 10, 20, 50, Inf)
+bins <- c(0, 1, 2, 5, 10, 20, 30, 50, Inf)
 
 # Cut data into bins
 ratchetmaps$bins <- cut(
   ratchetmaps$percentpp, 
   breaks = bins, 
-  labels = c("<1%", "1-2%", "2-5%", "5-10%", "10-20%", "20-50%", ">50%"),
+  labels = c("<1%", "1-2%", "2-5%", "5-10%", "10-20%", "20-30%", "30-50%", ">50%"),
   right = FALSE
 )
 
 # Then aggregate by year and bin, grouping by the length of the cell_id vector (eg., the count of the number of cells in each bin group.)
-cumcount <- aggregate(cell_id ~ bins + year, ratchetmaps, length)
-colnames(cumcount)[3] <- "count"
+#cumcount <- aggregate(cell_id ~ bins + year, ratchetmaps, length)
+#colnames(cumcount)[3] <- "count"
+
+# Jk, we want water area per exploited cell
+cumcount <- aggregate(water_area ~ bins + year, ratchetmaps, sum)
 
 # The above result gives us the count of the number of cells within each bin. However, it doesn't tell us the count of cells with that percent exploitation _or greater_. So, for example, our bins for 1-2% cells don't include the count of any cells with a _higher_ exploitation rate as well.
 
 cumcount <- cumcount[cumcount$bins != "<1%",] # first, let's get rid of cells with less than 1% exploitation. We really don't need that. 
   
-gt1_2 <- aggregate(count ~ year, cumcount, sum) # for all rows where there is a 1-2% bin, replace the count with the sum of all 1-2% or GREATER (which is everything).
-gt2_5 <- aggregate(count ~ year, cumcount[cumcount$bins != "1-2%",], sum) # for all rows where count is 2-5% or greater
-gt5_10 <- aggregate(count ~ year, cumcount[cumcount$bins != c("1-2%", "2-5%"),], sum) # for all rows where count is 5-10% or greater
-gt10_20 <- aggregate(count ~ year, cumcount[cumcount$bins != c("1-2%", "2-5%", "5-10%"),], sum) # for all rows where count is 10-20% or greater
-gt20_50 <- aggregate(count ~ year, cumcount[cumcount$bins == c("20-50%", ">50%"),], sum) # for all rows where count is 20-50% or greater
+gt1_2 <- aggregate(water_area ~ year, cumcount, sum) # for all rows where there is a 1-2% bin, replace the cell area with the sum of all 1-2% or GREATER (which is everything).
+gt2_5 <- aggregate(water_area ~ year, cumcount[cumcount$bins != "1-2%",], sum) # for all rows where cell is 2-5% or greater
+gt5_10 <- aggregate(water_area ~ year, cumcount[cumcount$bins != c("1-2%", "2-5%"),], sum) # for all rows where cell is 5-10% or greater
+gt10_20 <- aggregate(water_area ~ year, cumcount[cumcount$bins != c("1-2%", "2-5%", "5-10%"),], sum) # for all rows where cell is 10-20% or greater
+gt20_30 <- aggregate(water_area ~ year, cumcount[cumcount$bins %in% c("20-30%", "30-50%", ">50%"),], sum) # for all rows where cell is 20-30% or greater
+gt30_50 <- aggregate(water_area ~ year, cumcount[cumcount$bins %in% c("30-50%", ">50%"),], sum) # for all rows where count is 30-50% or greater
 
 # add the "or greater" column
 cumcount[cumcount$bins=="1-2%", "orgreater"] <- gt1_2[2]
 cumcount[cumcount$bins=="2-5%", "orgreater"] <- gt2_5[2]
 cumcount[cumcount$bins=="5-10%", "orgreater"] <- gt5_10[2]
 cumcount[cumcount$bins=="10-20%", "orgreater"] <- gt10_20[2]
-cumcount[cumcount$bins=="20-50%", "orgreater"] <- gt20_50[2]
-cumcount[cumcount$bins==">50%", "orgreater"] <- cumcount[cumcount$bins==">50%", "count"]
+cumcount[cumcount$bins=="20-30%", "orgreater"] <- gt20_30[2]
+cumcount[cumcount$bins=="30-50%", "orgreater"] <- gt30_50[2]
+cumcount[cumcount$bins==">50%", "orgreater"] <- cumcount[cumcount$bins==">50%", "water_area"]
 
 # definitely could've looped all of that but whatever lol
 
+cumeplot <- cumcount[cumcount$bins %in% c("10-20%", "20-30%", "30-50%"),]
+
 # oh boy. 
-cumpal <- c("#0099dc", "#ffd73e", "#f29d1f", "#f16c1f", "#f05336", "#d12c17")
+#cumpal <- c("#0099dc", "#ffd73e", "#f29d1f", "#f16c1f", "#f05336", "#d12c17")
+
+cumpal <- c("#ffd73e", "#f29d1f", "#d12c17")
+
+# Divide by xxx (for axes formatting)
+divide1000 <- function(){
+  function(x)x/1000
+}
 
 # now plot that boi
-#cumplot <- 
+cumplot <- 
   ggplot(
-  data = cumcount,
+  data = cumeplot,
     aes(
       x = year, 
       y = orgreater, 
@@ -657,39 +673,39 @@ cumpal <- c("#0099dc", "#ffd73e", "#f29d1f", "#f16c1f", "#f05336", "#d12c17")
     # aes(cumulative = TRUE # for gganimate
     #    )
   ) +
+  scale_y_continuous(
+      expand = c(0,0), #removes stupid gap btwn plot & axes
+      labels = divide1000() # divide units by 1000 w function specified above
+    ) +
   scale_x_continuous(
     expand = c(0,0),
     limits = c(1950, 2014),
     breaks = seq(1950, 2014, 10)
   ) +
-  
-  scale_y_continuous(
-    expand = c(0,0)
-  ) +
   scale_color_manual(
     values = cumpal,
     name = "Percent exploitation",
-    labels = c("1-2% or greater", "2-5% or greater", "5-10% or greater", "10-20% or greater", "20-50% or greater", ">50%")
+    labels = c(">= 10%", ">= 20%", ">=30%")
     ) +
   labs(
     x = "Year", 
-    y = "Number of cells",
-    title = "Cumulative frequency of exploited cells"
+    y = expression('km'^2 %*% 10^3),
+    title = "Cumulative frequency of exploited area"
   ) +
   theme_map() + 
   theme(
     axis.line = element_line(color="black", size=0.2)
   )
 
-# ggsave(
-#   filename = "Results/cumulative_plot.png",
-#   plot = cumplot,
-#   width=85 * (14/5), # 85 mm is 1 column width of Frontiers journal
-#   height = 40 * (14/5), # * 1.6 because of this stupid hacky workaround https://stackoverflow.com/questions/44685354/r-ggplot-ggsave-produces-different-plot-element-sizes-than-simply-exporting-in-r
-#   device = "png",
-#   dpi = 300,
-#   units = "mm"
-# )
+ggsave(
+  filename = "Results/cumulative_plot.png",
+  plot = cumplot,
+  width=85 * (14/5), # 85 mm is 1 column width of Frontiers journal
+  height = 40 * (14/5), # * 1.6 because of this stupid hacky workaround https://stackoverflow.com/questions/44685354/r-ggplot-ggsave-produces-different-plot-element-sizes-than-simply-exporting-in-r
+  device = "png",
+  dpi = 300,
+  units = "mm"
+)
 
 animation::ani.options(ani.width=1004, ani.height=472, ani.res=300)
 gganimate(cumplot, "Results/cumulative_plot_animation.gif", interval=0.2) # will take a minute or two
