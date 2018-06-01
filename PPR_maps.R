@@ -63,10 +63,10 @@ if (!require(showtext)) {
 }
 font_add_google("Karla", "karla") # Add nice google font
 showtext_auto() # Tell R to use showtext to render google font
-# if (!require(extrafont)) {
-#   install.packages("extrafont", repos = "http://cran.utstat.utoronto.ca/")
-#   require(extrafont)
-# }
+if (!require(extrafont)) {
+  install.packages("extrafont", repos = "http://cran.utstat.utoronto.ca/")
+  require(extrafont)
+}
 #font_import(pattern = "Karla") # only need to do this once
 
 # 1. custom "not in" function
@@ -129,6 +129,9 @@ for (i in fixyears){
   allmaps <- rbind(allmaps, clean)
 }
 
+rm(fix)
+rm(clean)
+rm(fixyears)
 
 
 # 02-2 Map aesthetics-------------------------------------------------------
@@ -390,18 +393,6 @@ ratchetmap <- function(yr, savecsv=FALSE, savepng=TRUE) {
       limits = c(-180, 180)
     ) +
     theme_map()
-    # theme_minimal() +
-    # theme(
-    #   text = element_text(family = "Karla", color = "#22211d"),
-    #   panel.grid.minor = element_blank(),
-    #   panel.grid.major = element_blank(),
-    #   plot.background = element_rect(fill = "#f5f5f2", color = NA), 
-    #   panel.background = element_rect(fill = "#f5f5f2", color = NA), 
-    #   legend.background = element_rect(fill = "#f5f5f2", color = NA),
-    #   panel.border = element_blank(), # infuriatingly doesn't work
-    #   plot.margin = unit(c(0,0,0,0), "cm"), # also infuriatingly doesn't work
-    #   aspect.ratio = 9 / 16 # 16:9 aspect ratio
-    # )
   
   plot(ratchet_plot) 
   
@@ -448,14 +439,6 @@ if (!require(animation)) {
 # need package devtools installed to use install_github
 # install_github("dgrtwo/gganimate")
 library(gganimate)
-
-# make the damn fonts show up
-if (!require(showtext)) {
-  install.packages("showtext", repos = "http://cran.utstat.utoronto.ca/")
-  require(showtext)
-}
-font_add_google("Karla", "karla") # Add nice google font
-showtext_auto() # Tell R to use showtext to render google font
 
 
 # 06-1 PPR animate --------------------------------------------------------
@@ -614,7 +597,7 @@ p <- ggplot() +
 
 #animation::ani.options(ani.width=2000, ani.height=1124, ani.res=1080)
 animation::ani.options(ani.width=1000, ani.height=562, ani.res=300)
-gganimate(p, "Results/slow-ratchet-PPR-animation.gif", interval=0.5) # will take a minute or two
+gganimate(p, "Results/slow-ratchet-PPR-animation.gif", interval=0.2) # will take a minute or two
 
 
 
@@ -714,12 +697,23 @@ gganimate(cumplot, "Results/cumulative_plot_animation.gif", interval=0.2) # will
 
 
 
+# 08 GLOBAL MEAN PPR --------------------------------------------------------
+# creating a table of: year | global_mean_ppr
+
+allmaps <- merge(allmaps, cells, by=c("cell_id")) # might need to move this line up to the cumulative plots above
+oceans_km2 = 360000000
+
+allmaps$ppr_km <- allmaps$ppr * allmaps$water_area
+
+global_mean <- aggregate(ppr_km ~ year, allmaps, sum)
+global_mean$mean <- global_mean$ppr_km/oceans_km2
+
+ggplot(data = global_mean, aes(x=year, y=mean)) + geom_line() + theme_map()
+
+# S1 MISC. PLOT -----------------------------------------------------------------
 
 
-# 0x MISC. PLOT -----------------------------------------------------------------
-
-
-# 07-1 PP PLOT ------------------------------------------------------------
+# S1-1 PP PLOT ------------------------------------------------------------
 
 # Test plot primary production 
 pp_plot <- ggplot() + 
@@ -776,7 +770,7 @@ pp_plot <- ggplot() +
 plot(pp_plot)
 
 
-# 07-2 PPR PLOT -----------------------------------------------------------
+# S1-2 PPR PLOT -----------------------------------------------------------
 
 # Test plot primary production required
 ppr_plot <- ggplot() + 
@@ -835,7 +829,7 @@ plot(ppr_plot)
 
 
 
-# 07-3 PPR% PLOT ----------------------------------------------------------
+# S1-3 PPR% PLOT ----------------------------------------------------------
 
 # test plot PPR as percent PP
 # hack together a colourbar - taken from https://github.com/blmoore/blogR/blob/master/R/measles_incidence_heatmap.R
@@ -921,7 +915,7 @@ ggsave(
   units = "mm"
 )
 
-# S1 LOG(PPR) PLOT --------------------------------------------------------
+# S1-4 LOG(PPR) PLOT --------------------------------------------------------
 
 # # log everything so we can see it mapped out a bit better.
 ppr1950$logppr <- ppr1950$ppr # chuck all ppr into a log column so we can take the log for funsies.
