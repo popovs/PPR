@@ -43,10 +43,6 @@ if (!require(scales)) { # for plotting
   install.packages("scales", repos = "http://cran.utstat.utoronto.ca/")
   require(scales)
 }
-if (!require(viridis)) { # for plotting
-  install.packages("viridis", repos = "http://cran.utstat.utoronto.ca/")
-  require(viridis)
-}
 if (!require(maptools)) { # for land map data
   install.packages("maptools", repos = "http://cran.utstat.utoronto.ca/")
   require(maptools)
@@ -81,7 +77,7 @@ if (!require(extrafont)) {
 #save(catch, file="catch.Rda")
 
 # LOAD FULL CATCH DATASET IF YOU NEED TO EDIT BASE DATA
-# load("catch.Rda") # this will take a minute
+load("catch.Rda") # this will take a minute
 
 # OTHERWISE LOAD PPRMAPS DATASET
 # Save that shit so you don't have to run this lorgeloop(TM) again
@@ -94,6 +90,7 @@ allmaps <- rbindlist(allmaps) # combine allmaps together into giant dataframe.
 # primary production data
 # Units of pprate are most likely gC/m2/day....? I have no clue.
 pp <- read.csv('Data/Primary_production/pprate.csv')
+pp <- pp[pp$pprate > -1,]
 names(pp) <- c("x", "y", "cell_id", "pprate")
 
 # cell data
@@ -134,7 +131,26 @@ rm(clean)
 rm(fixyears)
 
 
-# 02-2 Map aesthetics-------------------------------------------------------
+
+# 02-2 Blank cells fix ----------------------------------------------------
+
+# Some years are missing cell data, which later causes the ratchet function to fuck up. When a cell disappears and then reappears the next year, the ratchet function for that cell resets. 
+# This can be fixed by putting in cells w zero catch across the whole globe for all years. 
+
+blanks <- read.csv('Data/Cell IDs coordinates and water_area.csv')
+blanks <- blanks[,c("seq", "x", "y")]
+names(blanks) <- c("cell_id", "x", "y")
+blanks$year <- 1950
+blanks$percentpp <- 0
+
+# Duplicate the blanks dataframe for every year, tack the year onto the end, and append it to the original blanks dataframe.
+# for (i in (1951:1955)){
+#   df <- blanks
+#   df$year <- i
+#   blanks <- rbind(blanks, df)
+# }
+
+# 02-3 Map aesthetics-------------------------------------------------------
 
 
 # Basic map aesthetics
@@ -188,7 +204,7 @@ cols <- c(colorRampPalette(c("#e7f0fa", "#c9e2f6", "#95cbee", "#0099dc",
 #   n   = number of species caught in given area (i.e., per cell?)
 
 allmaps <- list() # create empty allmaps list to fill with map data from below function.
-pprmap <- function(yr, savecsv=FALSE, savepng=FALSE) {
+pprmap <- function(yr, savecsv=TRUE, savepng=TRUE) {
   
   # INITIAL SETUP #
   
@@ -196,9 +212,14 @@ pprmap <- function(yr, savecsv=FALSE, savepng=FALSE) {
   mapdata <- data.table(catch[year == yr]) # pull map data from giant dataset for particular year, make it a datatable for faster calcs.
   print(paste0("Catch data subset for year ", yr," done."))
   
-  pprdata <- merge(mapdata, pp, by = c("cell_id")) # merge w pp
-  pprdata <- pprdata[,c("cell_id", "x.x", "y.x", "year", "tl", "sum", "pprate")]
+  pprdata <- merge(mapdata, pp, by = c("cell_id"), all=TRUE) # merge w pp
+  pprdata <- pprdata[,c("cell_id", "x.y", "y.y", "year", "tl", "sum", "pprate")]
   names(pprdata) <- c("cell_id", "x", "y", "year", "tl", "catch", "pprate")
+  
+  # Clean rows with NAs
+  pprdata$year <- yr
+  pprdata$tl[is.na(pprdata$tl)] <- 0
+  pprdata$catch[is.na(pprdata$catch)] <- 0
   
   # PPR CALCULATION #
   
