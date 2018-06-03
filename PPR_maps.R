@@ -77,15 +77,10 @@ if (!require(extrafont)) {
 #save(catch, file="catch.Rda")
 
 # LOAD FULL CATCH DATASET IF YOU NEED TO EDIT BASE DATA
-load("catch.Rda") # this will take a minute
+#load("catch.Rda") # this will take a minute
 
 # OTHERWISE LOAD PPRMAPS DATASET
-# Save that shit so you don't have to run this lorgeloop(TM) again
-# save(allmaps, file="allmaps.Rda")
 load("allmaps.Rda") # this will take a minute
-
-# bind allmaps into one large dataframe
-allmaps <- rbindlist(allmaps) # combine allmaps together into giant dataframe.
 
 # primary production data
 # Units of pprate are most likely gC/m2/day....? I have no clue.
@@ -126,6 +121,7 @@ for (i in fixyears){
   allmaps <- rbind(allmaps, clean)
 }
 
+rm(i)
 rm(fix)
 rm(clean)
 rm(fixyears)
@@ -203,8 +199,8 @@ cols <- c(colorRampPalette(c("#e7f0fa", "#c9e2f6", "#95cbee", "#0099dc",
 #   TLi = trophic leevl of species "i"
 #   n   = number of species caught in given area (i.e., per cell?)
 
-allmaps <- list() # create empty allmaps list to fill with map data from below function.
-pprmap <- function(yr, savecsv=TRUE, savepng=TRUE) {
+#allmaps <- list() # create empty allmaps list to fill with map data from below function.
+pprmap <- function(yr, savecsv=FALSE, savepng=FALSE) {
   
   # INITIAL SETUP #
   
@@ -331,8 +327,11 @@ pprmap <- function(yr, savecsv=TRUE, savepng=TRUE) {
 years <- 1950:2014
 lapply(years, pprmap)
 
+# bind allmaps into one large dataframe
+#allmaps <- rbindlist(allmaps) # combine allmaps together into giant dataframe.
+
 # Save that shit so you don't have to run this lorgeloop(TM) again
-# save(allmaps, file="allmaps.Rda")
+#save(allmaps, file="allmaps.Rda")
 #load("allmaps.Rda") # this will take a minute
 
 # When you're done, remove catch to free up some RAM.
@@ -351,7 +350,7 @@ ratchetmaps <- allmaps %>%
 
 # create ratchet map function ratchetmap()
 
-ratchetmap <- function(yr, savecsv=FALSE, savepng=TRUE) {
+ratchetmap <- function(yr, savecsv=TRUE, savepng=TRUE) {
   
   flush.console() # allows function to print status updates in console.
   mapdata <- ratchetmaps[ratchetmaps$year == yr,]
@@ -650,8 +649,8 @@ cumcount <- cumcount[cumcount$bins != "<1%",] # first, let's get rid of cells wi
   
 gt1_2 <- aggregate(water_area ~ year, cumcount, sum) # for all rows where there is a 1-2% bin, replace the cell area with the sum of all 1-2% or GREATER (which is everything).
 gt2_5 <- aggregate(water_area ~ year, cumcount[cumcount$bins != "1-2%",], sum) # for all rows where cell is 2-5% or greater
-gt5_10 <- aggregate(water_area ~ year, cumcount[cumcount$bins != c("1-2%", "2-5%"),], sum) # for all rows where cell is 5-10% or greater
-gt10_20 <- aggregate(water_area ~ year, cumcount[cumcount$bins != c("1-2%", "2-5%", "5-10%"),], sum) # for all rows where cell is 10-20% or greater
+gt5_10 <- aggregate(water_area ~ year, cumcount[cumcount$bins %!in% c("1-2%", "2-5%"),], sum) # for all rows where cell is 5-10% or greater
+gt10_20 <- aggregate(water_area ~ year, cumcount[cumcount$bins %!in% c("1-2%", "2-5%", "5-10%"),], sum) # for all rows where cell is 10-20% or greater
 gt20_30 <- aggregate(water_area ~ year, cumcount[cumcount$bins %in% c("20-30%", "30-50%", ">50%"),], sum) # for all rows where cell is 20-30% or greater
 gt30_50 <- aggregate(water_area ~ year, cumcount[cumcount$bins %in% c("30-50%", ">50%"),], sum) # for all rows where count is 30-50% or greater
 
