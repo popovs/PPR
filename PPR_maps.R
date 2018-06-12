@@ -79,14 +79,14 @@ if (!require(extrafont)) {
 # LOAD FULL CATCH DATASET IF YOU NEED TO EDIT BASE DATA
 #load("catch.Rda") # this will take a minute
 
-# OTHERWISE LOAD PPRMAPS DATASET
+## OTHERWISE LOAD PPRMAPS DATASET
 load("allmaps.Rda") # this will take a minute
 
 # primary production data
 # Units of pprate are most likely gC/m2/day....? I have no clue.
 pp <- read.csv('Data/Primary_production/pprate.csv')
-pp <- pp[pp$pprate > -1,]
 names(pp) <- c("x", "y", "cell_id", "pprate")
+pp <- pp[pp$pprate > -1,]
 
 # cell data
 cells <- read.csv('Data/Cell IDs coordinates and water_area.csv')
@@ -139,12 +139,7 @@ names(blanks) <- c("cell_id", "x", "y")
 blanks$year <- 1950
 blanks$percentpp <- 0
 
-# Duplicate the blanks dataframe for every year, tack the year onto the end, and append it to the original blanks dataframe.
-# for (i in (1951:1955)){
-#   df <- blanks
-#   df$year <- i
-#   blanks <- rbind(blanks, df)
-# }
+rm(blanks)
 
 # 02-3 Map aesthetics-------------------------------------------------------
 
@@ -199,7 +194,7 @@ cols <- c(colorRampPalette(c("#e7f0fa", "#c9e2f6", "#95cbee", "#0099dc",
 #   TLi = trophic leevl of species "i"
 #   n   = number of species caught in given area (i.e., per cell?)
 
-#allmaps <- list() # create empty allmaps list to fill with map data from below function.
+allmaps <- list() # create empty allmaps list to fill with map data from below function.
 pprmap <- function(yr, savecsv=FALSE, savepng=FALSE) {
   
   # INITIAL SETUP #
@@ -229,8 +224,8 @@ pprmap <- function(yr, savecsv=FALSE, savepng=FALSE) {
   # using data.table "setDT(x)" to aggregate instead of base R as it's way faster. Will overwrite mapdata w actual mapping stuff (maybe not a good idea? We'll see)
   mapdata <- setDT(pprdata)[, .(ppr = sum(ppr)), by = 'cell_id,x,y,year,pprate'] # add up all ppr's by cell, + keep x, y, year, pprate columns
   
-  #tbh I have no idea whats up with these units but in theory.. multiply pprate by 1e6 to get into m2 and by 365 to get into year. Multiply by 100 just so that the percents SOMEHOW match up with the original paper. 
-  mapdata$percentpp <- mapdata$ppr/(mapdata$pprate * 100 * 1000000 * 365) * 100
+  #tbh I have no idea whats up with these units but in theory.. multiply pprate by 1e6 to get into m2 and by 365 to get into year. Multiply by 1000 just so that the percents SOMEHOW match up with the original paper. 
+  mapdata$percentpp <- mapdata$ppr/(mapdata$pprate * 1000 * 1000000 * 365) * 100
   print("PPR calculations done.")
   
   dfname <- paste0("map",yr)
@@ -265,10 +260,10 @@ pprmap <- function(yr, savecsv=FALSE, savepng=FALSE) {
     # Scalebar & fill
     scale_fill_gradientn(
       name = "% PP",
-      colours=cols, limits=c(0, 21),
-      breaks=c(0, 1, 2, 5, 10, 20), 
+      colours=cols, limits=c(0, 11),
+      breaks=c(0, 2, 5, 10), 
       na.value=rgb(246, 246, 246, max=255),
-      labels=c("0%", "1%", "2%", "5%", "10%", ">20%"),
+      labels=c("0%", "2%", "5%", ">10%"),
       oob = squish, # squish astronomically high %s into scale color
       guide=guide_colourbar(ticks=T, nbin=50,
                             label=T,
@@ -663,6 +658,8 @@ cumcount[cumcount$bins=="20-30%", "orgreater"] <- gt20_30[2]
 cumcount[cumcount$bins=="30-50%", "orgreater"] <- gt30_50[2]
 cumcount[cumcount$bins==">50%", "orgreater"] <- cumcount[cumcount$bins==">50%", "water_area"]
 
+rm(list = ls(pattern="gt"))
+
 # definitely could've looped all of that but whatever lol
 
 cumeplot <- cumcount[cumcount$bins %in% c("10-20%", "20-30%", "30-50%"),]
@@ -670,7 +667,11 @@ cumeplot <- cumcount[cumcount$bins %in% c("10-20%", "20-30%", "30-50%"),]
 # oh boy. 
 #cumpal <- c("#0099dc", "#ffd73e", "#f29d1f", "#f16c1f", "#f05336", "#d12c17")
 
-cumpal <- c("#ffd73e", "#f29d1f", "#d12c17")
+# three colors
+#cumpal <- c("#ffd73e", "#f29d1f", "#d12c17")
+
+# three greys
+cumpal <- c("grey60", "grey40", "black")
 
 # Divide by xxx (for axes formatting)
 divide1000 <- function(){
@@ -704,6 +705,7 @@ cumplot <-
   ) +
   scale_color_manual(
     values = cumpal,
+    #values = c("black", "black", "black"),
     name = "Percent exploitation",
     labels = c(">= 10%", ">= 20%", ">=30%")
     ) +
@@ -714,11 +716,14 @@ cumplot <-
   ) +
   theme_map() + 
   theme(
-    axis.line = element_line(color="black", size=0.2)
+    axis.line = element_line(color="black", size=0.2),
+    plot.background = element_rect(fill = "#f9f9f9", color = NA), 
+    panel.background = element_rect(fill = "#f9f9f9", color = NA), 
+    legend.background = element_rect(fill = "#f9f9f9", color = NA)
   )
 
 ggsave(
-  filename = "Results/cumulative_plot.png",
+  filename = "Results/cumulative_plot_gw.png",
   plot = cumplot,
   width=85 * (14/5), # 85 mm is 1 column width of Frontiers journal
   height = 40 * (14/5), # * 1.6 because of this stupid hacky workaround https://stackoverflow.com/questions/44685354/r-ggplot-ggsave-produces-different-plot-element-sizes-than-simply-exporting-in-r
@@ -739,10 +744,17 @@ gganimate(cumplot, "Results/cumulative_plot_animation.gif", interval=0.2) # will
 allmaps <- merge(allmaps, cells, by=c("cell_id")) # might need to move this line up to the cumulative plots above
 oceans_km2 = 360000000
 
-allmaps$ppr_km <- allmaps$ppr * allmaps$water_area
+# for global mean (gC/km2/year):
+allmaps$ppr_km <- allmaps$ppr * allmaps$water_area # for global mean PPR in gC/km2/year
+global_mean_km <- aggregate(ppr_km ~ year, allmaps, sum)
+global_mean_km$mean <- global_mean_km$ppr_km/oceans_km2
 
-global_mean <- aggregate(ppr_km ~ year, allmaps, sum)
-global_mean$mean <- global_mean$ppr_km/oceans_km2
+# for global mean (% PPR/year):
+# Σi(PPR%i*km2i)/Σi(km2i)
+# the PPR in % in a cell i is multiplied by its surface area, the products are summed over the entire ocean, and the sum is dived by the surface are of the entire ocean. The result should be the mean global PPR  for the year in question, in %.
+allmaps$percentpp_km <- allmaps$percentpp * allmaps$water_area # for global mean PPR as a percent
+global_mean_ppp <- aggregate(percentpp_km ~ year, allmaps, sum)
+global_mean_ppp$mean <- (global_mean_ppp$percentpp_km / oceans_km2) * 100
 
 # Divide by xxxxxx (for axes formatting)
 divide1mil <- function(){
@@ -751,11 +763,13 @@ divide1mil <- function(){
 
 # PPR gC/km2/year
 PPR_legend = expression(
-  "Mean PPR" ~ ("gC" %*% "km"^-2 %*% "year"^-1)
+  #"Mean PPR" ~ ("gC" %*% "km"^-2 %*% "year"^-1)
+  "Mean PPR" ~ ("% global primary production")
 )
 
-mean_plot <- ggplot(
-  data = global_mean, 
+mean_plot <- 
+  ggplot(
+  data = global_mean_ppp, 
   aes(x=year, y=mean)
   ) + 
   geom_line() + 
@@ -765,22 +779,31 @@ mean_plot <- ggplot(
     breaks = seq(1950, 2014, 10)
   ) +
   scale_y_continuous(
-    expand = c(0,0)
+    expand = c(0,0), 
+    limits = c(0, 30), 
+    breaks = seq(0, 25, 5)
   ) +
   labs(
+    title = "Global mean primary production required",
+    subtitle = "As a percentage of global primary production",
     x = "Year", 
     y = PPR_legend
   ) +
   theme_map() +
   theme(
     axis.line = element_line(color="black", size=0.2),
-    axis.title=element_text(size=11) # Axis titles
+    plot.title=element_text(size=15), # Plot title
+    plot.subtitle=element_text(size=12), # Plot subtitle
+    axis.title=element_text(size=11), # Axis titles
+    plot.background = element_rect(fill = "#ffffff", color = NA), 
+    panel.background = element_rect(fill = "#ffffff", color = NA), 
+    legend.background = element_rect(fill = "#ffffff", color = NA)
     )
 
 ggsave(
-  filename = "Results/global_mean_ppr.png",
+  filename = "Results/global_mean_percentppr.png",
   plot = mean_plot,
-  width=70 * (14/5), # 85 mm is 1 column width of Frontiers journal
+  width= 62 * (14/5), # 85 mm is 1 column width of Frontiers journal
   height = 40 * (14/5), # * 1.6 because of this stupid hacky workaround https://stackoverflow.com/questions/44685354/r-ggplot-ggsave-produces-different-plot-element-sizes-than-simply-exporting-in-r
   device = "png",
   dpi = 300,
